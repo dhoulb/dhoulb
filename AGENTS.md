@@ -14,3 +14,7 @@ Personal site for Dave Houlbrooke. Built with [Astro](https://astro.build). Host
 ## Deploy
 
 Cloudflare Workers Builds deploys on every push to `main`. Build command: `bun run build`. Deploy command: `bunx wrangler deploy`. Cloudflare uses bun because `bun.lock` is present.
+
+## Workflow
+
+Push straight to `main`. Do not open pull requests. Fast development matters more than review on this project. Every push to `main` deploys to dhoulb.com, so run `bun run build` before you push.
