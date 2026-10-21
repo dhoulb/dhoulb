@@ -6,6 +6,8 @@
     { "pattern": "dhoulb.com/*", "zone_name": "dhoulb.com" },
     { "pattern": "www.dhoulb.com/*", "zone_name": "dhoulb.com" }
   ],
+  "preview_urls": true,
+  "previews": {},
   "assets": {
     "directory": "./dist",
     "not_found_handling": "404-page"
