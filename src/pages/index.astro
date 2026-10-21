@@ -188,8 +188,8 @@ const links = [
 	const REACH = 150; // Mouse range (px).
 	const PUSH = 18; // Max push away from mouse (px).
 	const GROW = 2.4; // Max size multiplier near mouse.
-	const PULL = 0.025; // Magnet strength.
-	const MAX_PULL = 1.4; // Max magnet acceleration (px per frame²).
+	const SPRING = 0.06; // Spring strength (both magnet and return).
+	const DAMP = 0.8; // Velocity kept each frame.
 	const CELL = 8; // Collision grid cell size (px), must be at least one dot diameter.
 
 	type Dot = { hx: number; hy: number; x: number; y: number; vx: number; vy: number; s: number };
@@ -273,18 +273,15 @@ const links = [
 	function step() {
 		for (const dot of dots) {
 			let ts = 1;
+			// One spring for both directions, so the pull in and the return take the same time.
+			let tx = dot.hx;
+			let ty = dot.hy;
 			if (magnet) {
 				// Pull every dot towards the mouse.
-				const ax = mouseX - dot.x;
-				const ay = mouseY - dot.y;
-				const dist = Math.hypot(ax, ay) || 1;
-				const force = Math.min(dist * PULL, MAX_PULL);
-				dot.vx = (dot.vx + (ax / dist) * force) * 0.86;
-				dot.vy = (dot.vy + (ay / dist) * force) * 0.86;
+				tx = mouseX;
+				ty = mouseY;
 			} else {
-				// Spring back home, pushed away from the mouse.
-				let tx = dot.hx;
-				let ty = dot.hy;
+				// Rest at home, pushed away from the mouse.
 				const ax = dot.hx - mouseX;
 				const ay = dot.hy - mouseY;
 				const dist = Math.hypot(ax, ay);
@@ -296,13 +293,14 @@ const links = [
 					ty += (ay / len) * PUSH * ease;
 					ts = 1 + (GROW - 1) * ease;
 				}
-				dot.vx = (dot.vx + (tx - dot.x) * 0.06) * 0.8;
-				dot.vy = (dot.vy + (ty - dot.y) * 0.06) * 0.8;
 			}
+			dot.vx = (dot.vx + (tx - dot.x) * SPRING) * DAMP;
+			dot.vy = (dot.vy + (ty - dot.y) * SPRING) * DAMP;
 			dot.x += dot.vx;
 			dot.y += dot.vy;
 			dot.s += (ts - dot.s) * 0.12;
 		}
+		collide();
 		collide();
 		collide();
 	}
