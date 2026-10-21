@@ -153,13 +153,17 @@ const links = [
 	const REACH = 150; // Mouse range (px).
 	const PUSH = 18; // Max push away from mouse (px).
 	const GROW = 2.4; // Max size multiplier near mouse.
+	const PULL = 0.025; // Magnet strength.
+	const MAX_PULL = 1.4; // Max magnet acceleration (px per frame²).
+	const CELL = 8; // Collision grid cell size (px), must be at least one dot diameter.
 
-	type Dot = { x: number; y: number; dx: number; dy: number; s: number };
+	type Dot = { hx: number; hy: number; x: number; y: number; vx: number; vy: number; s: number };
 	let dots: Dot[] = [];
 	let width = 0;
 	let height = 0;
 	let mouseX = -9999;
 	let mouseY = -9999;
+	let magnet = false;
 	let frame = 0;
 
 	function resize() {
@@ -176,7 +180,9 @@ const links = [
 		const offsetY = (height - (rows - 1) * GAP) / 2;
 		for (let row = 0; row < rows; row++) {
 			for (let col = 0; col < cols; col++) {
-				dots.push({ x: offsetX + col * GAP, y: offsetY + row * GAP, dx: 0, dy: 0, s: 1 });
+				const x = offsetX + col * GAP;
+				const y = offsetY + row * GAP;
+				dots.push({ hx: x, hy: y, x, y, vx: 0, vy: 0, s: 1 });
 			}
 		}
 	}
@@ -193,37 +199,91 @@ const links = [
 		return `hsl(${hue.toFixed(1)} 100% ${light.toFixed(1)}%)`;
 	}
 
-	function draw(t: number) {
-		ctx.clearRect(0, 0, width, height);
-		const still = reduced.matches;
+	// Push overlapping dots apart, using a spatial hash so each dot only checks its neighbours.
+	function collide() {
+		const grid = new Map<number, Dot[]>();
+		const key = (cx: number, cy: number) => cx * 100003 + cy;
 		for (const dot of dots) {
-			let tx = 0;
-			let ty = 0;
+			const k = key(Math.floor(dot.x / CELL), Math.floor(dot.y / CELL));
+			const cell = grid.get(k);
+			if (cell) cell.push(dot);
+			else grid.set(k, [dot]);
+		}
+		for (const a of dots) {
+			const cx = Math.floor(a.x / CELL);
+			const cy = Math.floor(a.y / CELL);
+			for (let ox = -1; ox <= 1; ox++) {
+				for (let oy = -1; oy <= 1; oy++) {
+					const cell = grid.get(key(cx + ox, cy + oy));
+					if (!cell) continue;
+					for (const b of cell) {
+						if (b === a) continue;
+						const dx = b.x - a.x;
+						const dy = b.y - a.y;
+						const min = SIZE * (a.s + b.s);
+						const d2 = dx * dx + dy * dy;
+						if (d2 >= min * min) continue;
+						const d = Math.sqrt(d2) || 0.01;
+						const push = (min - d) / d / 2;
+						a.x -= dx * push;
+						a.y -= dy * push;
+						b.x += dx * push;
+						b.y += dy * push;
+					}
+				}
+			}
+		}
+	}
+
+	function step() {
+		for (const dot of dots) {
 			let ts = 1;
-			if (!still) {
-				const ax = dot.x - mouseX;
-				const ay = dot.y - mouseY;
+			if (magnet) {
+				// Pull every dot towards the mouse.
+				const ax = mouseX - dot.x;
+				const ay = mouseY - dot.y;
+				const dist = Math.hypot(ax, ay) || 1;
+				const force = Math.min(dist * PULL, MAX_PULL);
+				dot.vx = (dot.vx + (ax / dist) * force) * 0.86;
+				dot.vy = (dot.vy + (ay / dist) * force) * 0.86;
+			} else {
+				// Spring back home, pushed away from the mouse.
+				let tx = dot.hx;
+				let ty = dot.hy;
+				const ax = dot.hx - mouseX;
+				const ay = dot.hy - mouseY;
 				const dist = Math.hypot(ax, ay);
 				if (dist < REACH) {
 					const f = 1 - dist / REACH;
 					const ease = f * f * (3 - 2 * f);
 					const len = dist || 1;
-					tx = (ax / len) * PUSH * ease;
-					ty = (ay / len) * PUSH * ease;
+					tx += (ax / len) * PUSH * ease;
+					ty += (ay / len) * PUSH * ease;
 					ts = 1 + (GROW - 1) * ease;
 				}
+				dot.vx = (dot.vx + (tx - dot.x) * 0.06) * 0.8;
+				dot.vy = (dot.vy + (ty - dot.y) * 0.06) * 0.8;
 			}
-			dot.dx += (tx - dot.dx) * 0.12;
-			dot.dy += (ty - dot.dy) * 0.12;
+			dot.x += dot.vx;
+			dot.y += dot.vy;
 			dot.s += (ts - dot.s) * 0.12;
-			ctx.fillStyle = colour(dot.x, dot.y, still ? 0 : t);
+		}
+		collide();
+		collide();
+	}
+
+	function draw(t: number) {
+		ctx.clearRect(0, 0, width, height);
+		for (const dot of dots) {
+			ctx.fillStyle = colour(dot.hx, dot.hy, t);
 			ctx.beginPath();
-			ctx.arc(dot.x + dot.dx, dot.y + dot.dy, SIZE * dot.s, 0, Math.PI * 2);
+			ctx.arc(dot.x, dot.y, SIZE * dot.s, 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
 
 	function loop(t: number) {
+		step();
 		draw(t);
 		frame = requestAnimationFrame(loop);
 	}
@@ -235,20 +295,26 @@ const links = [
 		else frame = requestAnimationFrame(loop);
 	}
 
+	function away() {
+		mouseX = -9999;
+		mouseY = -9999;
+		magnet = false;
+	}
+
 	window.addEventListener("resize", start);
 	reduced.addEventListener("change", start);
 	window.addEventListener("pointermove", (e) => {
 		mouseX = e.clientX;
 		mouseY = e.clientY;
 	});
-	function away() {
-		mouseX = -9999;
-		mouseY = -9999;
-	}
 	window.addEventListener("pointerup", (e) => {
 		if (e.pointerType !== "mouse") away();
 	});
 	document.addEventListener("pointerleave", away);
 	window.addEventListener("blur", away);
+	for (const link of document.querySelectorAll("main a")) {
+		link.addEventListener("pointerenter", () => (magnet = true));
+		link.addEventListener("pointerleave", () => (magnet = false));
+	}
 	start();
 </script>
