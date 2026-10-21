@@ -1,16 +1,246 @@
 ---
 const title = "Dave Houlbrooke";
+const links = [
+	{ label: "GitHub", href: "https://github.com/dhoulb" },
+	{ label: "LinkedIn", href: "https://www.linkedin.com/in/dhoulb" },
+];
 ---
 
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="color-scheme" content="dark" />
+		<meta name="theme-color" content="#140b05" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="preload" as="image" href="/dave.webp" type="image/webp" />
 		<title>{title}</title>
+		<meta name="description" content="Dave Houlbrooke" />
 	</head>
 	<body>
-		<h1>{title}</h1>
-		<p>Hello. This site is new. More soon.</p>
+		<canvas id="dots" aria-hidden="true"></canvas>
+		<main>
+			<picture>
+				<source srcset="/dave.webp" type="image/webp" />
+				<img src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
+			</picture>
+			<h1>{title}</h1>
+			<ul>
+				{
+					links.map(({ label, href }) => (
+						<li>
+							<a href={href} rel="me">
+								{label}
+							</a>
+						</li>
+					))
+				}
+			</ul>
+		</main>
 	</body>
 </html>
+
+<style is:global>
+	* {
+		box-sizing: border-box;
+	}
+	html,
+	body {
+		margin: 0;
+		min-height: 100%;
+		background: #140b05;
+		color: #fff4ea;
+		font-family:
+			system-ui,
+			-apple-system,
+			"Segoe UI",
+			Roboto,
+			sans-serif;
+	}
+	body {
+		display: grid;
+		place-items: center;
+		min-height: 100vh;
+		min-height: 100dvh;
+		padding: 24px 16px;
+	}
+	#dots {
+		position: fixed;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		display: block;
+	}
+	main {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 20px;
+		padding: 40px 48px;
+		border-radius: 28px;
+		background: rgb(20 11 5 / 0.72);
+		backdrop-filter: blur(6px);
+		-webkit-backdrop-filter: blur(6px);
+		box-shadow: 0 0 0 1px rgb(255 140 40 / 0.18);
+		text-align: center;
+	}
+	@media (max-width: 480px) {
+		main {
+			padding: 32px 24px;
+		}
+	}
+	img {
+		display: block;
+		width: 160px;
+		height: 160px;
+		border-radius: 50%;
+		object-fit: cover;
+		box-shadow:
+			0 0 0 3px #140b05,
+			0 0 0 5px #ff8a1f;
+	}
+	h1 {
+		margin: 4px 0 0;
+		font-size: 2rem;
+		font-weight: 700;
+		letter-spacing: -0.01em;
+	}
+	ul {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: 12px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+	a {
+		display: inline-block;
+		padding: 10px 20px;
+		border-radius: 999px;
+		border: 1px solid rgb(255 138 31 / 0.6);
+		color: #fff4ea;
+		text-decoration: none;
+		font-weight: 600;
+		transition:
+			background-color 0.2s,
+			color 0.2s;
+	}
+	a:hover,
+	a:focus-visible {
+		background: #ff8a1f;
+		color: #140b05;
+		outline: none;
+	}
+</style>
+
+<script>
+	const canvas = document.getElementById("dots") as HTMLCanvasElement;
+	const ctx = canvas.getContext("2d")!;
+	const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+	const GAP = 28; // Space between dots (px).
+	const SIZE = 2.2; // Dot radius at rest (px).
+	const REACH = 150; // Mouse range (px).
+	const PUSH = 18; // Max push away from mouse (px).
+	const GROW = 2.4; // Max size multiplier near mouse.
+
+	type Dot = { x: number; y: number; dx: number; dy: number; s: number };
+	let dots: Dot[] = [];
+	let width = 0;
+	let height = 0;
+	let mouseX = -9999;
+	let mouseY = -9999;
+	let frame = 0;
+
+	function resize() {
+		const ratio = Math.min(window.devicePixelRatio || 1, 2);
+		width = window.innerWidth;
+		height = window.innerHeight;
+		canvas.width = Math.round(width * ratio);
+		canvas.height = Math.round(height * ratio);
+		ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+		dots = [];
+		const cols = Math.ceil(width / GAP) + 1;
+		const rows = Math.ceil(height / GAP) + 1;
+		const offsetX = (width - (cols - 1) * GAP) / 2;
+		const offsetY = (height - (rows - 1) * GAP) / 2;
+		for (let row = 0; row < rows; row++) {
+			for (let col = 0; col < cols; col++) {
+				dots.push({ x: offsetX + col * GAP, y: offsetY + row * GAP, dx: 0, dy: 0, s: 1 });
+			}
+		}
+	}
+
+	// Colour drifts softly from bright orange to burnt orange across the page.
+	function colour(x: number, y: number, t: number) {
+		const wave =
+			Math.sin(x * 0.004 + t * 0.00035) * 0.5 +
+			Math.sin(y * 0.005 - t * 0.00025) * 0.3 +
+			Math.sin((x + y) * 0.002 + t * 0.0002) * 0.2;
+		const k = (wave + 1) / 2; // 0 = burnt orange, 1 = bright orange.
+		const hue = 20 + k * 14;
+		const light = 40 + k * 15;
+		return `hsl(${hue.toFixed(1)} 100% ${light.toFixed(1)}%)`;
+	}
+
+	function draw(t: number) {
+		ctx.clearRect(0, 0, width, height);
+		const still = reduced.matches;
+		for (const dot of dots) {
+			let tx = 0;
+			let ty = 0;
+			let ts = 1;
+			if (!still) {
+				const ax = dot.x - mouseX;
+				const ay = dot.y - mouseY;
+				const dist = Math.hypot(ax, ay);
+				if (dist < REACH) {
+					const f = 1 - dist / REACH;
+					const ease = f * f * (3 - 2 * f);
+					const len = dist || 1;
+					tx = (ax / len) * PUSH * ease;
+					ty = (ay / len) * PUSH * ease;
+					ts = 1 + (GROW - 1) * ease;
+				}
+			}
+			dot.dx += (tx - dot.dx) * 0.12;
+			dot.dy += (ty - dot.dy) * 0.12;
+			dot.s += (ts - dot.s) * 0.12;
+			ctx.fillStyle = colour(dot.x, dot.y, still ? 0 : t);
+			ctx.beginPath();
+			ctx.arc(dot.x + dot.dx, dot.y + dot.dy, SIZE * dot.s, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	}
+
+	function loop(t: number) {
+		draw(t);
+		frame = requestAnimationFrame(loop);
+	}
+
+	function start() {
+		cancelAnimationFrame(frame);
+		resize();
+		if (reduced.matches) draw(0);
+		else frame = requestAnimationFrame(loop);
+	}
+
+	window.addEventListener("resize", start);
+	reduced.addEventListener("change", start);
+	window.addEventListener("pointermove", (e) => {
+		mouseX = e.clientX;
+		mouseY = e.clientY;
+	});
+	function away() {
+		mouseX = -9999;
+		mouseY = -9999;
+	}
+	window.addEventListener("pointerup", (e) => {
+		if (e.pointerType !== "mouse") away();
+	});
+	document.addEventListener("pointerleave", away);
+	window.addEventListener("blur", away);
+	start();
+</script>
