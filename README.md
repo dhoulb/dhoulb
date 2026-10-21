@@ -6,11 +6,11 @@ Personal site for Dave Houlbrooke. Built with [Astro](https://astro.build). Host
 
 | Command          | Action                                  |
 | ---------------- | --------------------------------------- |
-| `npm install`    | Install dependencies                    |
-| `npm run dev`    | Start local dev server at `localhost:4321` |
-| `npm run build`  | Build the site to `./dist/`             |
-| `npm run deploy` | Build and deploy to Cloudflare          |
+| `bun install`    | Install dependencies                    |
+| `bun run dev`    | Start local dev server at `localhost:4321` |
+| `bun run build`  | Build the site to `./dist/`             |
+| `bun run deploy` | Build and deploy to Cloudflare          |
 
 ## Deploy
 
-Cloudflare Workers Builds deploys on every push to `main`. Build command: `npm run build`. Deploy command: `npx wrangler deploy`.
+Cloudflare Workers Builds deploys on every push to `main`. Build command: `bun run build`. Deploy command: `bunx wrangler deploy`. Cloudflare uses bun because `bun.lock` is present.
