@@ -15,7 +15,7 @@ const links = [
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="preload" as="image" href="/dave.webp" type="image/webp" />
 		<title>{title}</title>
-		<meta name="description" content="Dave Houlbrooke" />
+		<meta name="description" content="Dave Houlbrooke. Product engineering, climbing, design." />
 	</head>
 	<body>
 		<canvas id="dots" aria-hidden="true"></canvas>
@@ -25,6 +25,7 @@ const links = [
 				<img src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
 			</picture>
 			<h1>{title}</h1>
+			<p>Product engineering, climbing, design.</p>
 			<ul>
 				{
 					links.map(({ label, href }) => (
@@ -105,6 +106,11 @@ const links = [
 		font-size: 2rem;
 		font-weight: 700;
 		letter-spacing: -0.01em;
+	}
+	p {
+		margin: -12px 0 4px;
+		color: rgb(255 244 234 / 0.75);
+		font-size: 1.05rem;
 	}
 	ul {
 		display: flex;
