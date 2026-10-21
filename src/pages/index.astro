@@ -9,7 +9,7 @@ const links = [
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 		<meta name="color-scheme" content="dark" />
 		<meta name="theme-color" content="#140b05" />
 		<link rel="icon" href="/favicon.ico" sizes="48x48" />
@@ -27,9 +27,9 @@ const links = [
 				<div class="flip">
 					<picture>
 						<source srcset="/dave.webp" type="image/webp" />
-						<img src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
+						<img draggable="false" src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
 					</picture>
-					<img class="back" src="/dh.webp" alt="" width="160" height="160" />
+					<img draggable="false" class="back" src="/dh.webp" alt="" width="160" height="160" />
 				</div>
 			</div>
 			<h1>{title}</h1>
@@ -38,7 +38,7 @@ const links = [
 				{
 					links.map(({ label, href }) => (
 						<li>
-							<a href={href} rel="me">
+							<a href={href} rel="me" draggable="false">
 								{label}
 							</a>
 						</li>
@@ -56,7 +56,15 @@ const links = [
 	html,
 	body {
 		margin: 0;
-		min-height: 100%;
+		height: 100%;
+		/* Lock the page: no scroll, no zoom, no text select. Finger drags only move the dots. */
+		overflow: hidden;
+		overscroll-behavior: none;
+		touch-action: none;
+		user-select: none;
+		-webkit-user-select: none;
+		-webkit-touch-callout: none;
+		-webkit-tap-highlight-color: transparent;
 		background: #140b05;
 		color: #fff4ea;
 		font-family:
@@ -67,11 +75,14 @@ const links = [
 			sans-serif;
 	}
 	body {
+		position: fixed;
+		inset: 0;
 		display: grid;
 		place-items: center;
-		min-height: 100vh;
-		min-height: 100dvh;
 		padding: 24px 16px;
+	}
+	img {
+		-webkit-user-drag: none;
 	}
 	#dots {
 		position: fixed;
@@ -345,6 +356,8 @@ const links = [
 	});
 	document.addEventListener("pointerleave", away);
 	window.addEventListener("blur", away);
+	// iOS Safari ignores user-scalable=no, so block pinch zoom here too.
+	document.addEventListener("gesturestart", (e) => e.preventDefault());
 	for (const link of document.querySelectorAll("main a, .avatar")) {
 		link.addEventListener("pointerenter", () => (magnet = true));
 		link.addEventListener("pointerleave", () => (magnet = false));
