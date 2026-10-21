@@ -22,10 +22,15 @@ const links = [
 	<body>
 		<canvas id="dots" aria-hidden="true"></canvas>
 		<main>
-			<picture>
-				<source srcset="/dave.webp" type="image/webp" />
-				<img src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
-			</picture>
+			<div class="avatar">
+				<div class="flip">
+					<picture>
+						<source srcset="/dave.webp" type="image/webp" />
+						<img src="/dave.jpg" alt="Dave Houlbrooke" width="160" height="160" />
+					</picture>
+					<img class="back" src="/dh.webp" alt="" width="160" height="160" />
+				</div>
+			</div>
 			<h1>{title}</h1>
 			<p>Product engineering, climbing, design.</p>
 			<ul>
@@ -102,6 +107,35 @@ const links = [
 		box-shadow:
 			0 0 0 3px #140b05,
 			0 0 0 5px #ff8a1f;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+	}
+	.avatar {
+		perspective: 800px;
+	}
+	.flip {
+		position: relative;
+		transform-style: preserve-3d;
+		/* Overshoot easing gives a slight overspin, then settles back. */
+		transition: transform 1.6s cubic-bezier(0.3, 1.15, 0.5, 1);
+	}
+	.flip > picture {
+		display: block;
+		backface-visibility: hidden;
+		-webkit-backface-visibility: hidden;
+	}
+	.flip .back {
+		position: absolute;
+		inset: 0;
+		transform: rotateX(180deg);
+	}
+	.avatar:hover .flip {
+		transform: rotateX(900deg);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.flip {
+			transition: none;
+		}
 	}
 	h1 {
 		margin: 4px 0 0;
@@ -312,7 +346,7 @@ const links = [
 	});
 	document.addEventListener("pointerleave", away);
 	window.addEventListener("blur", away);
-	for (const link of document.querySelectorAll("main a")) {
+	for (const link of document.querySelectorAll("main a, .avatar")) {
 		link.addEventListener("pointerenter", () => (magnet = true));
 		link.addEventListener("pointerleave", () => (magnet = false));
 	}
