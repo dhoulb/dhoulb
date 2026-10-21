@@ -196,12 +196,13 @@ const links = [
 
 	const GAP = 28; // Space between dots (px).
 	const SIZE = 2.2; // Dot radius at rest (px).
-	const REACH = 150; // Mouse range (px).
-	const PUSH = 18; // Max push away from mouse (px).
-	const GROW = 2.4; // Max size multiplier near mouse.
+	const REACH = 230; // Mouse range (px).
+	const PUSH = 32; // Max push away from mouse (px).
+	const GROW = 3.2; // Max size multiplier near mouse.
 	const SPRING = 0.06; // Spring strength (both magnet and return).
 	const DAMP = 0.8; // Velocity kept each frame.
-	const CELL = 8; // Collision grid cell size (px), must be at least one dot diameter.
+	const SPACE = 2.5; // Extra space kept between packed dots (px).
+	const CELL = 18; // Collision grid cell size (px), must be at least the largest collision distance.
 
 	type Dot = { hx: number; hy: number; x: number; y: number; vx: number; vy: number; s: number };
 	let dots: Dot[] = [];
@@ -266,7 +267,7 @@ const links = [
 						if (b === a) continue;
 						const dx = b.x - a.x;
 						const dy = b.y - a.y;
-						const min = SIZE * (a.s + b.s);
+						const min = SIZE * (a.s + b.s) + SPACE;
 						const d2 = dx * dx + dy * dy;
 						if (d2 >= min * min) continue;
 						const d = Math.sqrt(d2) || 0.01;
