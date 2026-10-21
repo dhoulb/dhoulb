@@ -1,0 +1,14 @@
+{
+  "name": "dhoulb",
+  "account_id": "1f3adb483b780d986849fd63602ca46b",
+  "compatibility_date": "2026-10-01",
+  "routes": [
+    { "pattern": "dhoulb.com/*", "zone_name": "dhoulb.com" }
+  ],
+  "preview_urls": true,
+  "previews": {},
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}
