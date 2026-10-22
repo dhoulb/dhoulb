@@ -212,6 +212,8 @@ const links = [
 	let waves: Wave[] = [];
 	let width = 0;
 	let height = 0;
+	let left = 0;
+	let top = 0;
 	let mouseX = -9999;
 	let mouseY = -9999;
 	let hovering = false;
@@ -220,8 +222,12 @@ const links = [
 
 	function resize() {
 		const ratio = Math.min(window.devicePixelRatio || 1, 2);
-		width = window.innerWidth;
-		height = window.innerHeight;
+		// Use the canvas's real size on screen. On mobile, window.innerHeight can differ from it as the browser bars move.
+		const rect = canvas.getBoundingClientRect();
+		width = rect.width;
+		height = rect.height;
+		left = rect.left;
+		top = rect.top;
 		canvas.width = Math.round(width * ratio);
 		canvas.height = Math.round(height * ratio);
 		ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -339,11 +345,19 @@ const links = [
 		hovering = false;
 	}
 
-	window.addEventListener("resize", start);
+	let size = "";
+	new ResizeObserver(() => {
+		const rect = canvas.getBoundingClientRect();
+		const next = `${rect.width}x${rect.height}`;
+		if (next !== size) {
+			size = next;
+			start();
+		}
+	}).observe(canvas);
 	reduced.addEventListener("change", start);
 	window.addEventListener("pointermove", (e) => {
-		mouseX = e.clientX;
-		mouseY = e.clientY;
+		mouseX = e.clientX - left;
+		mouseY = e.clientY - top;
 	});
 	window.addEventListener("pointerup", (e) => {
 		if (e.pointerType !== "mouse") away();
@@ -354,12 +368,11 @@ const links = [
 	document.addEventListener("gesturestart", (e) => e.preventDefault());
 	for (const link of document.querySelectorAll("main a")) {
 		link.addEventListener("pointerenter", (e) => {
-			mouseX = (e as PointerEvent).clientX;
-			mouseY = (e as PointerEvent).clientY;
+			mouseX = (e as PointerEvent).clientX - left;
+			mouseY = (e as PointerEvent).clientY - top;
 			hovering = true;
 			lastWave = -Infinity; // First wave starts at once.
 		});
 		link.addEventListener("pointerleave", () => (hovering = false));
 	}
-	start();
 </script>
