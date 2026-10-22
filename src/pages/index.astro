@@ -3,6 +3,7 @@ const title = "Dave Houlbrooke";
 const links = [
 	{ label: "GitHub", href: "https://github.com/dhoulb" },
 	{ label: "LinkedIn", href: "https://www.linkedin.com/in/dhoulb" },
+	{ label: "Instagram", href: "https://www.instagram.com/dhoulb" },
 ];
 ---
 
@@ -162,15 +163,15 @@ const links = [
 	}
 	ul {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
+		flex-direction: column;
+		align-self: stretch;
 		gap: 12px;
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 	a {
-		display: inline-block;
+		display: block;
 		padding: 10px 20px;
 		border-radius: 999px;
 		border: 1px solid rgb(255 138 31 / 0.6);
@@ -199,18 +200,25 @@ const links = [
 	const REACH = 230; // Mouse range (px).
 	const PUSH = 32; // Max push away from mouse (px).
 	const GROW = 3.2; // Max size multiplier near mouse.
-	const SPRING = 0.06; // Spring strength (both magnet and return).
+	const SPRING = 0.06; // Spring strength.
 	const DAMP = 0.8; // Velocity kept each frame.
-	const SPACE = 2.5; // Extra space kept between packed dots (px).
-	const CELL = 18; // Collision grid cell size (px), must be at least the largest collision distance.
+	const WAVE_EVERY = 2000; // Time between waves while a link is hovered (ms).
+	const WAVE_SPEED = 0.45; // Wave speed (px per ms).
+	const WAVE_WIDTH = 70; // Wave band width (px).
+	const WAVE_LIFE = 3000; // Time until a wave fades out (ms).
+	const WAVE_PUSH = 6; // Wave push outwards (px).
+	const WAVE_GROW = 0.35; // Wave size increase (fraction).
 
 	type Dot = { hx: number; hy: number; x: number; y: number; vx: number; vy: number; s: number };
+	type Wave = { x: number; y: number; t: number };
 	let dots: Dot[] = [];
+	let waves: Wave[] = [];
 	let width = 0;
 	let height = 0;
 	let mouseX = -9999;
 	let mouseY = -9999;
-	let magnet = false;
+	let hovering = false;
+	let lastWave = 0;
 	let frame = 0;
 
 	function resize() {
@@ -234,116 +242,104 @@ const links = [
 		}
 	}
 
-	// Colour drifts softly from bright orange to burnt orange across the page.
-	function colour(x: number, y: number, t: number) {
+	// Colour drifts softly from bright orange to burnt orange across the page, and brightens towards white in a wave.
+	function colour(x: number, y: number, t: number, glow: number) {
 		const wave =
 			Math.sin(x * 0.004 + t * 0.00035) * 0.5 +
 			Math.sin(y * 0.005 - t * 0.00025) * 0.3 +
 			Math.sin((x + y) * 0.002 + t * 0.0002) * 0.2;
 		const k = (wave + 1) / 2; // 0 = burnt orange, 1 = bright orange.
-		const hue = 20 + k * 14;
+		const hue = 20 + k * 14 + glow * 10;
 		const light = 40 + k * 15;
-		return `hsl(${hue.toFixed(1)} 100% ${light.toFixed(1)}%)`;
+		return `hsl(${hue.toFixed(1)} 100% ${(light + (96 - light) * glow).toFixed(1)}%)`;
 	}
 
-	// Push overlapping dots apart, using a spatial hash so each dot only checks its neighbours.
-	function collide() {
-		const grid = new Map<number, Dot[]>();
-		const key = (cx: number, cy: number) => cx * 100003 + cy;
-		for (const dot of dots) {
-			const k = key(Math.floor(dot.x / CELL), Math.floor(dot.y / CELL));
-			const cell = grid.get(k);
-			if (cell) cell.push(dot);
-			else grid.set(k, [dot]);
+	// How strongly each wave touches a point (0–1), and the push direction.
+	function waveAt(x: number, y: number, t: number) {
+		let glow = 0;
+		let px = 0;
+		let py = 0;
+		for (const w of waves) {
+			const age = t - w.t;
+			const dx = x - w.x;
+			const dy = y - w.y;
+			const dist = Math.hypot(dx, dy) || 1;
+			const off = (dist - age * WAVE_SPEED) / WAVE_WIDTH;
+			if (off < -2 || off > 2) continue;
+			const g = Math.exp(-off * off * 2) * (1 - age / WAVE_LIFE);
+			glow += g;
+			px += (dx / dist) * g;
+			py += (dy / dist) * g;
 		}
-		for (const a of dots) {
-			const cx = Math.floor(a.x / CELL);
-			const cy = Math.floor(a.y / CELL);
-			for (let ox = -1; ox <= 1; ox++) {
-				for (let oy = -1; oy <= 1; oy++) {
-					const cell = grid.get(key(cx + ox, cy + oy));
-					if (!cell) continue;
-					for (const b of cell) {
-						if (b === a) continue;
-						const dx = b.x - a.x;
-						const dy = b.y - a.y;
-						const min = SIZE * (a.s + b.s) + SPACE;
-						const d2 = dx * dx + dy * dy;
-						if (d2 >= min * min) continue;
-						const d = Math.sqrt(d2) || 0.01;
-						const push = (min - d) / d / 2;
-						a.x -= dx * push;
-						a.y -= dy * push;
-						b.x += dx * push;
-						b.y += dy * push;
-					}
-				}
-			}
-		}
+		return { glow: Math.min(glow, 1), px, py };
 	}
 
-	function step() {
+	function step(t: number) {
+		if (hovering && t - lastWave >= WAVE_EVERY) {
+			waves.push({ x: mouseX, y: mouseY, t });
+			lastWave = t;
+		}
+		waves = waves.filter((w) => t - w.t < WAVE_LIFE);
+		ctx.clearRect(0, 0, width, height);
 		for (const dot of dots) {
-			let ts = 1;
-			// One spring for both directions, so the pull in and the return take the same time.
+			// Rest at home, pushed away from the mouse.
 			let tx = dot.hx;
 			let ty = dot.hy;
-			if (magnet) {
-				// Pull every dot towards the mouse.
-				tx = mouseX;
-				ty = mouseY;
-			} else {
-				// Rest at home, pushed away from the mouse.
-				const ax = dot.hx - mouseX;
-				const ay = dot.hy - mouseY;
-				const dist = Math.hypot(ax, ay);
-				if (dist < REACH) {
-					const f = 1 - dist / REACH;
-					const ease = f * f * (3 - 2 * f);
-					const len = dist || 1;
-					tx += (ax / len) * PUSH * ease;
-					ty += (ay / len) * PUSH * ease;
-					ts = 1 + (GROW - 1) * ease;
-				}
+			let ts = 1;
+			const ax = dot.hx - mouseX;
+			const ay = dot.hy - mouseY;
+			const dist = Math.hypot(ax, ay);
+			if (dist < REACH) {
+				const f = 1 - dist / REACH;
+				const ease = f * f * (3 - 2 * f);
+				const len = dist || 1;
+				tx += (ax / len) * PUSH * ease;
+				ty += (ay / len) * PUSH * ease;
+				ts = 1 + (GROW - 1) * ease;
 			}
+			// Waves push outwards, grow and brighten the dots they pass.
+			const { glow, px, py } = waveAt(dot.hx, dot.hy, t);
+			tx += px * WAVE_PUSH;
+			ty += py * WAVE_PUSH;
+			ts *= 1 + WAVE_GROW * glow;
 			dot.vx = (dot.vx + (tx - dot.x) * SPRING) * DAMP;
 			dot.vy = (dot.vy + (ty - dot.y) * SPRING) * DAMP;
 			dot.x += dot.vx;
 			dot.y += dot.vy;
-			dot.s += (ts - dot.s) * 0.12;
-		}
-		collide();
-		collide();
-		collide();
-	}
-
-	function draw(t: number) {
-		ctx.clearRect(0, 0, width, height);
-		for (const dot of dots) {
-			ctx.fillStyle = colour(dot.hx, dot.hy, t);
+			dot.s += (ts - dot.s) * 0.2;
+			ctx.fillStyle = colour(dot.hx, dot.hy, t, glow);
 			ctx.beginPath();
 			ctx.arc(dot.x, dot.y, SIZE * dot.s, 0, Math.PI * 2);
 			ctx.fill();
 		}
 	}
 
+	function drawStill() {
+		ctx.clearRect(0, 0, width, height);
+		for (const dot of dots) {
+			ctx.fillStyle = colour(dot.hx, dot.hy, 0, 0);
+			ctx.beginPath();
+			ctx.arc(dot.x, dot.y, SIZE, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	}
+
 	function loop(t: number) {
-		step();
-		draw(t);
+		step(t);
 		frame = requestAnimationFrame(loop);
 	}
 
 	function start() {
 		cancelAnimationFrame(frame);
 		resize();
-		if (reduced.matches) draw(0);
+		if (reduced.matches) drawStill();
 		else frame = requestAnimationFrame(loop);
 	}
 
 	function away() {
 		mouseX = -9999;
 		mouseY = -9999;
-		magnet = false;
+		hovering = false;
 	}
 
 	window.addEventListener("resize", start);
@@ -359,9 +355,14 @@ const links = [
 	window.addEventListener("blur", away);
 	// iOS Safari ignores user-scalable=no, so block pinch zoom here too.
 	document.addEventListener("gesturestart", (e) => e.preventDefault());
-	for (const link of document.querySelectorAll("main a, .avatar")) {
-		link.addEventListener("pointerenter", () => (magnet = true));
-		link.addEventListener("pointerleave", () => (magnet = false));
+	for (const link of document.querySelectorAll("main a")) {
+		link.addEventListener("pointerenter", (e) => {
+			mouseX = (e as PointerEvent).clientX;
+			mouseY = (e as PointerEvent).clientY;
+			hovering = true;
+			lastWave = -Infinity; // First wave starts at once.
+		});
+		link.addEventListener("pointerleave", () => (hovering = false));
 	}
 	start();
 </script>
